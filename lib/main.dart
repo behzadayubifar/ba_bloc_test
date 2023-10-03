@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
-import 'dart:math' as math show Random;
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 void main() {
@@ -18,88 +19,166 @@ class MainApp extends StatelessWidget {
       themeMode: ThemeMode.dark,
       debugShowCheckedModeBanner: false,
       debugShowMaterialGrid: false,
-      home: HomePage(),
+      home: BlocProvider(
+        create: (_) => PersonsBloc(),
+        child: HomePage(),
+      ),
     );
   }
 }
 
-const names = ['bar', 'foo', 'baz'];
-
-extension RandomElemment<T> on Iterable<T> {
-  T getRandomElement() => elementAt(math.Random().nextInt(length));
+abstract class LoadAction {
+  const LoadAction();
 }
 
-class NamesCubit extends Cubit<String?> {
-  NamesCubit() : super(null);
-
-  void pickRandomName() => emit(names.getRandomElement());
+enum PersonUrl {
+  person1,
+  person2,
 }
 
-class HomePage extends StatefulWidget {
+@immutable
+class LoadPersonAction implements LoadAction {
+  final PersonUrl url;
+
+  const LoadPersonAction({required this.url}) : super();
+}
+
+extension UrlString on PersonUrl {
+  String get urlString {
+    switch (this) {
+      case PersonUrl.person1:
+        return "http://10.0.2.2:5500/api/person1.json";
+      case PersonUrl.person2:
+        return "http://10.0.2.2:5500/api/person2.json";
+    }
+  }
+}
+
+@immutable
+class Person {
+  final String name;
+  final int age;
+
+  const Person({
+    required this.name,
+    required this.age,
+  });
+
+  factory Person.fromJson(Map<String, dynamic> json) {
+    return Person(
+      name: json['name'],
+      age: json['age'],
+    );
+  }
+}
+
+Future<Iterable<Person>> getPersons(String url) => HttpClient()
+    .getUrl(Uri.parse(url))
+    .then((req) => req.close())
+    .then((resp) => resp.transform(utf8.decoder).join())
+    .then((str) => json.decode(str) as List<dynamic>)
+    .then((list) => list.map((e) => Person.fromJson(e)));
+
+@immutable
+class FetchResult {
+  final Iterable<Person> persons;
+  final bool isRetrievedFromCache;
+
+  const FetchResult({
+    required this.persons,
+    required this.isRetrievedFromCache,
+  });
+
+  @override
+  String toString() =>
+      'FetchResult (isRetrievedFromCache: $isRetrievedFromCache) persons: $persons';
+}
+
+class PersonsBloc extends Bloc<LoadAction, FetchResult?> {
+  final Map<PersonUrl, Iterable<Person>> _cache = {};
+  PersonsBloc() : super(null) {
+    //
+    on<LoadPersonAction>((event, emit) async {
+      final url = event.url;
+      if (_cache.containsKey(url)) {
+        final cachedPerson = _cache[url]!;
+        final result = FetchResult(
+          persons: cachedPerson,
+          isRetrievedFromCache: true,
+        );
+        emit(result);
+      } else {
+        final persons = await getPersons(url.urlString);
+        _cache[url] = persons;
+        final result = FetchResult(
+          persons: persons,
+          isRetrievedFromCache: false,
+        );
+        emit(result);
+      }
+    });
+  }
+}
+
+class HomePage extends StatelessWidget {
   const HomePage({super.key});
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  late final NamesCubit _namesCubit;
-
-  @override
-  void initState() {
-    super.initState();
-    _namesCubit = NamesCubit();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-    _namesCubit.close();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          title: Text('Home Page'),
-        ),
-        body: StreamBuilder<String?>(
-          stream: _namesCubit.stream,
-          builder: (context, snapshot) {
-            final button = TextButton(
-                onPressed: () => _namesCubit.pickRandomName(),
-                child: Text('Pick a random name'));
-
-            switch (snapshot.connectionState) {
-              case ConnectionState.none:
-                return button;
-              case ConnectionState.waiting:
-                return button;
-              case ConnectionState.active:
-                return Column(
-                  children: [Text(snapshot.data ?? ''), button],
-                );
-              case ConnectionState.done:
-                return Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Random Name:',
-                      style: Theme.of(context).textTheme.headline5,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      snapshot.data ?? 'No name picked yet',
-                      style: Theme.of(context).textTheme.headline4,
-                    ),
-                    const SizedBox(height: 32),
-                    button,
-                  ],
-                );
-              default:
-                return const SizedBox.shrink();
-            }
-          },
-        ));
+      appBar: AppBar(
+        title: Text('Home Page'),
+      ),
+      body: Column(
+        children: [
+          Row(
+            children: [
+              TextButton(
+                onPressed: () {
+                  context
+                      .read<PersonsBloc>()
+                      .add(LoadPersonAction(url: PersonUrl.person1));
+                },
+                child: Text('Load Person #1'),
+              ),
+              TextButton(
+                onPressed: () {
+                  context
+                      .read<PersonsBloc>()
+                      .add(LoadPersonAction(url: PersonUrl.person2));
+                },
+                child: Text('Load Person #2'),
+              ),
+            ],
+          ),
+          BlocBuilder<PersonsBloc, FetchResult?>(
+            buildWhen: (previousResult, currentResult) {
+              return previousResult?.persons != currentResult?.persons;
+            },
+            builder: (context, fetchResult) {
+              final persons = fetchResult?.persons;
+              if (persons == null) {
+                return SizedBox();
+              }
+              return Expanded(
+                child: ListView.builder(
+                  itemCount: persons.length,
+                  itemBuilder: (context, index) {
+                    final person = persons[index]!;
+                    return ListTile(
+                      title: Text(person.name),
+                    );
+                  },
+                ),
+              );
+            },
+          )
+        ],
+      ),
+    );
   }
+}
+
+extension Subscript<T> on Iterable<T> {
+  T? operator [](int index) => length > index ? elementAt(index) : null;
 }
