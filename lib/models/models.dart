@@ -29,7 +29,7 @@ enum LoginErrors {
 class Note {
   final String title;
 
-  Note({
+  const Note({
     required this.title,
   });
 
