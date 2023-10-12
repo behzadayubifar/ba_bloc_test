@@ -1,22 +1,14 @@
-import 'package:ba_flutter_testing_block/view/home_page.dart';
+import 'package:ba_flutter_testing_block/views/app.dart';
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MainApp());
-}
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: ThemeData(brightness: Brightness.dark),
-      darkTheme: ThemeData(brightness: Brightness.dark),
-      themeMode: ThemeMode.dark,
-      debugShowCheckedModeBanner: false,
-      debugShowMaterialGrid: false,
-      home: const HomePage(),
-    );
-  }
+  runApp(const App());
 }

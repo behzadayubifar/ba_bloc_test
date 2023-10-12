@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "753795904717",
+    "project_id": "ba-bloc-vandad-course",
+    "storage_bucket": "ba-bloc-vandad-course.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:753795904717:android:55304d9625cce3bea82584",
+        "android_client_info": {
+          "package_name": "com.example.ba_flutter_testing_block"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSn-U0DflcLndMcSsHcvi2X8LEUirdD-A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
